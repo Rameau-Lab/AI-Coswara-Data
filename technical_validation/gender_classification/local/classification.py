@@ -7,14 +7,22 @@ import pandas as pd
 import pickle
 import os
 import random
+
+import torch
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, LinearRegression, Lasso
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import auc
+from sklearn.metrics import auc, mean_squared_error, mean_absolute_error
 from matplotlib import pyplot as plt
 from pdb import set_trace as bp
+
+from torch.utils.data import DataLoader
+import torch.nn as nn
+import torch.optim as optim
+from TransformerAgeModel import SoundDataset, TransformerAgeModel
+from Wav2VecPretrained import FT_Wav2Vec
 
 SEED = 42
 random.seed(SEED)
@@ -48,7 +56,7 @@ def score(reference_labels,sys_scores,thresholds=np.arange(0,1,0.0001)):
 
 	return AUC, TPR, TNR
 
-def get_data(file_list,feats_file,labels_file,shuffle=False):
+def get_data(file_list,feats_file,labels_file, label, shuffle=False,):
 	#bp()
 	#%% read the list of files
 	file_list = open(file_list).readlines()
@@ -58,9 +66,12 @@ def get_data(file_list,feats_file,labels_file,shuffle=False):
 	temp = open(labels_file).readlines()
 	temp = [line.strip().split() for line in temp]
 	labels={}
-	categories = ['female', 'male']
-	for fil,label in temp:
-		labels[fil]=categories.index(label)
+	# categories = ['female', 'male']
+	# for fil,label in temp:
+	# 	labels[fil]=categories.index(label)
+
+	for fil, label in temp:
+		labels[fil] = int(label)
 	del temp
 
 	#%% read feats.scp
@@ -71,6 +82,7 @@ def get_data(file_list,feats_file,labels_file,shuffle=False):
 		feats[fil]=filpath
 	del temp
 
+
 	#%% make examples
 	egs = []
 	for fil,_ in file_list:
@@ -78,10 +90,11 @@ def get_data(file_list,feats_file,labels_file,shuffle=False):
 			F = pickle.load(open(feats[fil],'rb'))
 			label = labels.get(fil,None)
 			if label is not None:
-				egs.append( np.concatenate( (F.mean(axis=0).reshape(1,-1),np.array([label]).reshape(1,-1)),axis=1 ) )
-
+				egs.append( F)
+	# trucnate or pad
+	min_length = min(len(x) for x in egs)
+	egs = [x[:min_length] for x in egs]
 	egs = np.vstack(egs)
-
 	if shuffle:
 		np.random.shuffle(egs)	
 	return egs[:,:-1], egs[:,-1]
@@ -92,18 +105,125 @@ def expand(x, y, gap=1e-4):
     y1 = np.repeat(y, 3) + add
     return x1, y1
 
-def main(config, datadir_name, audiocategory, output_dir):
+def main(config, datadir_name, audiocategory,  label, output_dir):
 	# bp()
-	print(audiocategory)
+	print(audiocategory, label)
 	datadir = os.path.join(datadir_name, audiocategory)
 	# Training dataset
-	train_feats, train_labels = get_data(datadir+"/all.scp",datadir+"/feats.scp",datadir+"/all", shuffle=True)
-	train_feats = train_feats[:, :int(train_feats.shape[1]/3)]
+	# @TODO CHANGE LABELS TO all_age_group
+	train_feats, train_labels = get_data(datadir+"/all.scp",datadir+"/feats.scp",datadir+"/all", label, shuffle=True)
+	# breakpoint()
+	# train_feats = train_feats[:, :int(train_feats.shape[1]/3)]
 	
 	X_train, X_test, y_train, y_test = train_test_split(train_feats, train_labels, test_size=0.3, random_state=SEED)
 	X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size =0.21, random_state=SEED)
+	# breakpoint()
+	if config['default']['classifier'] == 'Wav2Vec':
+		print("w2v")
+		train_dataset = SoundDataset(X_train, y_train)
+		val_dataset = SoundDataset(X_val, y_val)
+		test_dataset = SoundDataset(X_test, y_test)
+		train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+		val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
+		test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-	if config['default']['classifier']=='RandomForest':
+		w2v = FT_Wav2Vec()
+		w2v.train(train_loader, val_dataset, test_loader)
+	elif config['default']['classifier'] == 'Transformer':
+		print("Transformer")
+		# scaler = StandardScaler(with_mean=True, with_std=False)
+		# X_train = scaler.fit_transform(X_train)
+		# X_val = scaler.transform(X_val)
+		# X_test = scaler.transform(X_test)
+		train_dataset = SoundDataset(X_train, y_train)
+		val_dataset = SoundDataset(X_val, y_val)
+		test_dataset = SoundDataset(X_test, y_test)
+		train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+		val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
+		test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+		model = TransformerAgeModel(input_dim=64,
+									model_dim=256,
+									num_heads=8,
+									num_layers=1,
+									output_dim=1,
+									dropout_rate=0.04)
+		optimizer = optim.Adam(model.parameters(), lr=0.0001)
+		scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, len(train_loader))
+
+		model.learn(train_loader, val_loader, test_loader, optimizer, scheduler)
+		# 9.89
+	elif config['default']['classifier']=='LassoRegression':
+		print("Lasso Regression")
+
+		# Scaling the data (assuming that scaling is necessary, uncomment if needed)
+		scaler = StandardScaler(with_mean=True, with_std=False)
+		X_train = scaler.fit_transform(X_train)
+		X_val = scaler.transform(X_val)
+		X_test = scaler.transform(X_test)
+
+		# Initialize the Lasso Regression model
+		# Alpha is a hyperparameter that controls regularization; adjust as necessary
+		alpha_value = 0.01  # Example alpha value, adjust based on your needs
+		max_iterations = 10000  # Increased from the default
+		clf = Lasso(alpha=alpha_value, max_iter=max_iterations)
+
+		# Train the model
+		clf.fit(X_train, y_train)
+
+		# Make predictions on validation and test sets
+		y_val_pred = clf.predict(X_val)
+		y_test_pred = clf.predict(X_test)
+
+		# Calculate MAE for the validation and test sets
+		val_mae = mean_absolute_error(y_val, y_val_pred)
+		print(f'Validation MAE: {val_mae}')
+
+		test_mae = mean_absolute_error(y_test, y_test_pred)
+		print(f'Test MAE: {test_mae}')
+
+		# Calculate RMSE for the validation and test sets
+		val_rmse = np.sqrt(mean_squared_error(y_val, y_val_pred))
+		print(f'Validation RMSE: {val_rmse}')
+
+		test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+		print(f'Test RMSE: {test_rmse}')
+
+	elif config['default']['classifier']=='LinearRegression':
+		print("Linear Regression")
+
+		# Scaling the data (assuming that scaling is necessary, uncomment if needed)
+		scaler = StandardScaler(with_mean=True, with_std=False)
+		X_train = scaler.fit_transform(X_train)
+		X_val = scaler.transform(X_val)
+		X_test = scaler.transform(X_test)
+		print(X_train.shape, X_val.shape, X_test.shape)
+
+		# Initialize the Linear Regression model
+		clf = LinearRegression()
+		print(X_train.shape)
+		print(y_train.shape)
+
+		# Train the model
+		clf.fit(X_train, y_train)
+
+		# Make predictions on validation and test sets
+		y_val_pred = clf.predict(X_val)
+		y_test_pred = clf.predict(X_test)
+
+		val_mae = mean_absolute_error(y_val, y_val_pred)
+		print(f'Validation MAE: {val_mae}')
+
+		test_mae = mean_absolute_error(y_test, y_test_pred)
+		print(f'Test MAE: {test_mae}')
+
+		# Calculate RMSE for the validation and test sets
+		val_rmse = np.sqrt(mean_squared_error(y_val, y_val_pred))
+		print(f'Validation RMSE: {val_rmse}')
+
+		test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+		print(f'Test RMSE: {test_rmse}')
+
+	elif config['default']['classifier']=='RandomForest':
 		print(config['default']['classifier'])
 		scaler = StandardScaler(with_mean=True, with_std=False)
 		# X_train = scaler.fit_transform(X_train)
@@ -177,9 +297,10 @@ if __name__=='__main__':
 	parser.add_argument('--audiocategory', '-a', required=True)
 	# parser.add_argument('--metadata_file', '-m', required=True)
 	parser.add_argument('--output_dir', '-o', required=True)
+	parser.add_argument('--label', '-l', required=True)
 	args = parser.parse_args()
 
 	config = configparser.ConfigParser()
 	config.read(args.classification_config)
 
-	main(config, args.datadir, args.audiocategory, args.output_dir)
+	main(config, args.datadir, args.audiocategory, args.label, args.output_dir)

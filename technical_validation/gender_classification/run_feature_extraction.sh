@@ -3,10 +3,10 @@
 
 stage=0
 
-annotationdir='annotations/LABELS/'
-#audiodir='/data1/srikanthr/Coswara/data_preparation/Coswara-Data-Extracted'
+annotationdir='annotations/LABELS'
+audiodir='../../Extracted_data'
 pathfile='path_files/wav.scp'
-audiocategory=$1
+audiocategory='cough-shallow'
 
 datadir_name='data'
 datadir=$datadir_name/$audiocategory
@@ -17,8 +17,9 @@ output_dir='results'
 
 classification_config='conf/classification.conf'
 feats_config='conf/feature.conf'
+label='age'
 
-. parse_options.sh
+bash parse_options.sh
 
 mkdir -p $datadir
 mkdir -p $feature_dir
@@ -26,7 +27,7 @@ mkdir -p $output_dir
 
 if [ $stage -le 0 ]; then
 	echo "==== Preparing lists ====="
-    python local/prepare_list.py -a $annotationdir/${audiocategory}.csv -p $pathfile -m $metadata_file -l $datadir/all -s $datadir/all.scp
+    python local/prepare_list.py -a $annotationdir/${audiocategory}.csv -p $pathfile -m $metadata_file -l $datadir/all -s $datadir/all.scp -ll $label
 fi
 
 if [ $stage -le 1 ]; then
@@ -38,7 +39,7 @@ if [ $stage -le 1 ]; then
 
 	echo "==== Feature extraction ====="
 	mkdir -p $feature_dir
-	#python local/feature_extraction.py -c $feats_config -i $datadir/all.scp -o $feature_dir
+	python local/feature_extraction.py -c $feats_config -i $datadir/all.scp -o $feature_dir
 	cp $feature_dir/feats.scp $datadir/feats.scp
     #mv $feature_dir/bad_ids.npy $datadir/bad_ids.npy
 	python local/filter_list.py -f $datadir/feats.scp -l $datadir/all -s $datadir/all.scp

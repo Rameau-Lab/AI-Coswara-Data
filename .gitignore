@@ -1,3 +1,9 @@
 extracted*/
 lifesignals/
 filtered*
+.idea
+Extracted_data/
+technical_validation/gender_classification/feats/
+technical_validation/speaker_verification/pretrained_models/
+.DS_Store
+technical_validation/gender_classification/local/__pycache__/

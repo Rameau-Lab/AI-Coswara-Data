@@ -1,0 +1,41 @@
+Transformer
+Validation MAE: 9.870915018386095
+Test MAE: 10.68286142562525
+
+Validation Average Loss: 156.91608123779298
+Validation RMSE: 12.575531005859375
+Test Average Loss: 180.3241928100586
+Test RMSE: 13.402342796325684
+
+
+Logmelspec
+
+Validation Average Loss: 213.22735900878905
+Validation RMSE: 14.652115821838379
+Validation MAE: 11.604517635382736
+Test Average Loss: 257.1271270751953
+Test RMSE: 16.036014556884766
+Test MAE: 12.525513182813748
+
+
+
+Linear Regression
+Validation MAE: 10.498983358591843
+Test MAE: 10.895241956568306
+
+Validation RMSE: 13.160218082177959
+Test RMSE: 13.56746724233586
+
+Lasso Regression
+Validation MAE: 10.477250478857025
+Test MAE: 10.871145597521059
+
+Validation RMSE: 13.13619862797565
+Test RMSE: 13.538048354362797
+
+
+Baseline:
+Sadjadi et al., iVectors and SVM, NIST SRE 2010 telephony test set, 4.7 years MAE
+Hechmi et al., CNN using spectrograms, part of VoxCeleb2, 9.44 years MAE
+Zazo et al., LSTM, NIST test set, 6.58 years MAE
+Gupta et al., wav2vec 2.0, Timit, 5.54 years MAE (male), 6.49 years MAE (female)
