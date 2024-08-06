@@ -118,16 +118,27 @@ def get_data(file_list, feats_file, labels_file, label, shuffle=False):
         feats[fil] = filpath
     del temp
 
-    # Make examples
+	# Make examples
     egs = []
     labels_list = []
     for fil, _ in file_list:
         if feats.get(fil, None) and labels.get(fil, None) is not None:
             F = pickle.load(open(feats[fil], 'rb'))
-            egs.append(F)
-            # Extend labels to match the number of feature vectors in F
-            labels_list.extend([labels[fil]] * F.shape[0])
-
+            if config['default']['feature_type'] == 'mfcc':
+                # Ensure MFCC features are 2D
+                if F.ndim == 2:
+                    egs.append(F)
+                    # Extend labels to match the number of feature vectors in F
+                    labels_list.extend([labels[fil]] * F.shape[0])
+                else:
+                    print(f"Skipping {fil} due to incorrect MFCC shape: {F.shape}")
+            elif config['default']['feature_type'] == 'w2v':
+                # Ensure W2V features are 1D
+                if F.ndim == 1:
+                    egs.append(F.reshape(1, -1))  # Convert to 2D for consistency
+                    labels_list.append(labels[fil])
+                else:
+                    print(f"Skipping {fil} due to incorrect W2V shape: {F.shape}")
     # Debug: Print shapes of all features and corresponding labels
     for i, (eg, lbl) in enumerate(zip(egs, labels_list)):
         print(f"Shape of feature {i}: {eg.shape}, Label: {lbl}")
