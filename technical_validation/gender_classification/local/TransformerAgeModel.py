@@ -1,12 +1,9 @@
-from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
+from transformers import Wav2Vec2Model
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-import torch
 from tqdm import tqdm
-import torch
 
-from transformers import Wav2Vec2Model
 class SoundDataset(Dataset):
     def __init__(self, features, labels):
         self.features = features
@@ -42,6 +39,7 @@ class TransformerAgeModel(nn.Module):
     def learn(self, train_loader, val_loader, test_loader, optimizer, scheduler):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {device}")
+        self.to(device)
         loss_fn = nn.MSELoss()  # Since age prediction is a regression problem
 
         self.train()
@@ -77,7 +75,7 @@ class TransformerAgeModel(nn.Module):
                 print(f"Epoch {epoch + 1}, Loss: {avg_loss}")
 
             if avg_loss < prev_loss:
-                prev_loss= avg_loss
+                prev_loss = avg_loss
                 countdown = patience
             else:
                 countdown -= 1
@@ -86,7 +84,7 @@ class TransformerAgeModel(nn.Module):
 
         self.eval()
         with torch.no_grad():
-            for loader, context in [(val_loader, "Validation"),(test_loader, "Test")]:
+            for loader, context in [(val_loader, "Validation"), (test_loader, "Test")]:
                 total_loss = 0
                 total_squared_error = 0
                 total_absolute_error = 0
@@ -119,9 +117,3 @@ class TransformerAgeModel(nn.Module):
 
                 mae = total_absolute_error / sample_count  # Calculate MAE
                 print(f"{context} MAE: {mae}")
-
-
-
-
-
-

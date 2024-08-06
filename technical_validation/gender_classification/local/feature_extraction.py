@@ -61,19 +61,42 @@ def compute_w2v(file_path, sampling_rate):
 
 def compute_mfcc(s, config):
     # Compute MFCC using librosa toolkit.
-    F = librosa.feature.mfcc(s, sr=int(config['default']['sampling_rate']),
-                             n_mfcc=int(config['mfcc']['n_mfcc']),
-                             n_fft=int(config['default']['window_size']),
-                             hop_length=int(config['default']['window_shift']),
-                             n_mels=int(config['mfcc']['n_mels']),
-                             fmax=int(config['mfcc']['fmax']))
+    # F = librosa.feature.mfcc(s, sr=int(config['default']['sampling_rate']),
+    #                          n_mfcc=int(config['mfcc']['n_mfcc']),
+    #                          n_fft=int(config['default']['window_size']),
+    #                          hop_length=int(config['default']['window_shift']),
+    #                          n_mels=int(config['mfcc']['n_mels']),
+    #                          fmax=int(config['mfcc']['fmax']))
+    #
+    # features = np.array(F)
+    # if config['mfcc']['add_deltas'] in ['True', 'true', 'TRUE', '1']:
+    #     deltas = librosa.feature.delta(F)
+    #     features = np.concatenate((features, deltas), axis=0)
+    #
+    # if config['mfcc']['add_delta_deltas'] in ['True', 'true', 'TRUE', '1']:
+    #     ddeltas = librosa.feature.delta(F, order=2)
+    #     features = np.concatenate((features, ddeltas), axis=0)
+    #
+    # return feature
+    # Ensure the necessary keys exist in the config
+    sr = int(config['default'].get('sampling_rate', 22050))
+    n_mfcc = int(config['mfcc'].get('n_mfcc', 13))
+    n_fft = int(config['default'].get('window_size', 2048))
+    hop_length = int(config['default'].get('window_shift', 512))
+    n_mels = int(config['mfcc'].get('n_mels', 128))
+    fmax = int(config['mfcc'].get('fmax', sr // 2))
+    add_deltas = config['mfcc'].get('add_deltas', 'False').lower() in ['true', '1']
+    add_delta_deltas = config['mfcc'].get('add_delta_deltas', 'False').lower() in ['true', '1']
+
+    # Compute MFCC features
+    F = librosa.feature.mfcc(y=s, sr=sr, n_mfcc=n_mfcc, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels, fmax=fmax)
 
     features = np.array(F)
-    if config['mfcc']['add_deltas'] in ['True', 'true', 'TRUE', '1']:
+    if add_deltas:
         deltas = librosa.feature.delta(F)
         features = np.concatenate((features, deltas), axis=0)
 
-    if config['mfcc']['add_delta_deltas'] in ['True', 'true', 'TRUE', '1']:
+    if add_delta_deltas:
         ddeltas = librosa.feature.delta(F, order=2)
         features = np.concatenate((features, ddeltas), axis=0)
 

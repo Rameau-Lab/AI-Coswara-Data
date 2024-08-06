@@ -34,7 +34,8 @@ def main(annotation_file, metadata_file, pathfile, outlist, outpath, label):
     df_path.columns = ['id', 'path']
     df_path_select = df_path[(df_path.id.isin(df_annotation.FILENAME.values))]
     assert df_annotation.shape[0]==df_path_select.shape[0]
-    df_path_select["id"] = df_path_select["id"].str.split("_", n=1, expand=True)[0]
+    #df_path_select["id"] = df_path_select["id"].str.split("_", n=1, expand=True)[0]
+    df_path_select.loc[:, "id"] = df_path_select["id"].str.split("_", n=1, expand=True)[0]
     df_path_select[(df_path_select.id.isin(df_annotation_drop.id.values))].to_csv(outpath, header=None, index=False, sep=' ')
 
 
